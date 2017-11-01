@@ -6,6 +6,8 @@ import Control.Applicative
 import Control.Monad
 import Data.Char
 
+import NanoStr
+
 -- | Our `Parser a` type denotes that we are taking in a `String` and then
 -- parsing it into a value, `a` (usually the AST), keeping the remaning input
 -- stream in the `String` in `(a, String)`.

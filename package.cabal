@@ -1,0 +1,14 @@
+-- https://jpvillaisaza.github.io/2017/03/14/minimal-cabal-files/
+name:                write-you-a-haskell-follow
+version:             0.1.0.0
+license:             BSD3
+license-file:        LICENSE
+build-type:          Simple
+cabal-version:       >=2
+
+library
+  signatures:          NanoStr
+  exposed-modules:     NanoParsec
+  build-depends:       base >=4.10 && <4.11
+  hs-source-dirs:      src
+  default-language:    Haskell2010
