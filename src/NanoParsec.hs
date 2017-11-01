@@ -1,10 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module NanoParsec where
 
 import Control.Applicative
 import Control.Monad
 import Data.Char
+import Data.List
+import Data.String
 
 import NanoStr
 
@@ -12,17 +15,43 @@ import NanoStr
 -- parsing it into a value, `a` (usually the AST), keeping the remaning input
 -- stream in the `String` in `(a, String)`.
 newtype Parser a = Parser
-  { parse :: String -> [(a, String)]
+  { parse :: Str -> [(a, Str)]
   }
 
 -- | A simple parser which returns the result, `res`, if the entire stream was
 -- successfully consumed, else an error condition.
-runParser :: Parser a -> String -> a
+runParser :: Parser a -> Str -> a
 runParser m s =
   case parse m s of
-    [(res, [])] -> res
-    [(_, rs)]   -> error $ "Parser did not consume entire stream: " ++ rs
-    _           -> error "Parser error."
+    [(res, rs)] ->
+      if nullP rs
+        then res
+        else error "Parser did not consume entire stream"
+    _ -> error "Parser error."
+
+-- This now goes in the NanoStr signature. 
+--
+--class (Eq p) => 
+--      Parseable p where
+--  emptyP :: p
+--  headP :: p -> p
+--  tailP :: p -> p
+--  nullP :: p -> Bool
+--  appendP :: String -> p -> String
+--  elemP :: p -> p -> Bool
+--  isDigitP :: p -> Bool
+
+-- This would now be an implementation of the signature
+--
+-- instance Parseable [Char] where
+--   emptyP = []
+--   headP (a:_) = [a]
+--   tailP (_:as) = as
+--   nullP [] = True
+--   nullP _ = False
+--   appendP s p = s ++ p
+--   elemP c s = c `isInfixOf` s
+--   isDigitP s = isDigit (head s)
 
 -- | The functor for our `Parser` applies the function, `f`, to all values, `a`,
 -- in the result tuple.
@@ -61,15 +90,15 @@ instance MonadPlus Parser where
 
 -- | Extract a single character from the parser stream and return a tuple
 -- containing the character, `c`, and the rest of the stream, `cs`.
-item :: Parser Char
+item :: Parser Str
 item =
   Parser $ \s ->
-    case s of
-      []     -> []
-      (c:cs) -> [(c, cs)]
+    if nullP s
+      then []
+      else [(headP s, tailP s)]
 
 -- | Take one parse operation, `Parser a`, and compose it over the result of a
--- second parse function, `(a -> Parser b)`. Composing with the a second parser
+-- second parse function, `(a -> Parser s b)`. Composing with the a second parser
 -- means mapping itself over the first parsers list of tuples and concatenating
 -- the resulting nested list of lists into a single flat list.
 bind :: Parser a -> (a -> Parser b) -> Parser b
@@ -94,11 +123,11 @@ option :: Parser a -> Parser a -> Parser a
 option p q =
   Parser $ \s ->
     case parse p s of
-      []  -> parse q s
+      [] -> parse q s
       res -> res
 
 -- | Check if the current character in the stream matches a given predicate, `p`.
-satisfy :: (Char -> Bool) -> Parser Char
+satisfy :: (Str -> Bool) -> Parser Str
 satisfy p =
   item `bind` \c ->
     if p c
@@ -106,8 +135,8 @@ satisfy p =
       else Parser (\cs -> [])
 
 -- | Check if any one of the characters, `s`, occur.
-oneOf :: [Char] -> Parser Char
-oneOf s = satisfy (flip elem s)
+oneOf :: Str -> Parser Str
+oneOf s = satisfy (flip elemP s)
 
 -- | Try `chainl1`, returning the original element on failure.
 chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
@@ -128,25 +157,25 @@ p `chainl1` op = do
       return a
 
 -- | Parse the item if it is a character.
-char :: Char -> Parser Char
+char :: Str -> Parser Str
 char c = satisfy (c ==)
 
 -- | Parse the item if it is a natural number.
 natural :: Parser Integer
-natural = read <$> some (satisfy isDigit)
+natural = read . map toCharP <$> some (satisfy isDigitP) -- had to add toCharP for this
 
 -- | Recursively check if the input stream is a string by concatenating a list
 -- of characters.
 string :: String -> Parser String
 string [] = return []
 string (c:cs) = do
-  char c
+  char (fromString "c")
   string cs
   return (c : cs)
 
 -- | Parse the items if they contain any space character (including newlines).
-spaces :: Parser String
-spaces = many $ oneOf " \n\r"
+spaces :: Parser [Str]
+spaces = many $ oneOf $ fromString " \n\r"
 
 -- | Run a parser on the item and then consume the subsequent spaces, returning
 -- the result after.
@@ -162,7 +191,7 @@ reserved s = token (string s)
 
 -- | Parse the item if it is a digit.
 digit :: Parser Char
-digit = satisfy isDigit
+digit = toCharP <$> satisfy isDigitP -- hack
 
 -- | Parse the item if it is a number, including support for unary minus.
 number :: Parser Int
