@@ -6,9 +6,29 @@ license-file:        LICENSE
 build-type:          Simple
 cabal-version:       >=2
 
-library
+-- Convenience library, not seen outside the package.
+-- In real-world cases the package would export the signature 
+-- in the main library and let users of the library instatiate it.
+library nanostr-indef
   signatures:          NanoStr
   exposed-modules:     NanoParsec
   build-depends:       base >=4.10 && <4.11
-  hs-source-dirs:      src
+  hs-source-dirs:      indef
   default-language:    Haskell2010
+
+-- Convenience library, not seen outside the package.
+-- In real-world cases this would be a separate implementation package.
+library impl-string
+  exposed-modules:     NanoStr.String
+  build-depends:       base >=4.10 && <4.11
+  hs-source-dirs:      impls
+  default-language:    Haskell2010
+
+executable nanoparsec
+    main-is: Main.hs
+    build-depends:       base >=4.10 && <4.11,
+                         nanostr-indef,
+                         impl-string
+    mixins:
+       nanostr-indef (NanoParsec as NanoParsec.String) requires (NanoStr as NanoStr.String)
+
